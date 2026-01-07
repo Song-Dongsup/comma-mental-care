@@ -1,9 +1,10 @@
+Python
 import streamlit as st
 import time
 import os
 import google.generativeai as genai
 from datetime import datetime
-import uuid  # [체크 1] 이 줄이 반드시 있어야 합니다!
+import uuid  # <--- [체크!] 이 줄이 없으면 앱이 멈춥니다.
 import json
 
 import config
@@ -15,11 +16,12 @@ import styles
 st.set_page_config(page_title="Comma", layout="centered", initial_sidebar_state="collapsed")
 styles.apply_pro_css()
 
-# 2. 세션 상태 초기화 (순서가 중요합니다!)
+# 2. 유저 고유 아이디 부여 (보안 핵심)
 if "user" not in st.session_state:
-    # 접속할 때마다 고유한 아이디 부여 (보안 해결)
+    # 접속할 때마다 'User_8자리코드'를 새로 만듭니다.
     st.session_state.user = f"User_{str(uuid.uuid4())[:8]}"
 
+# 3. 기타 세션 상태 초기화
 if "app_state" not in st.session_state:
     st.session_state.app_state = "SPLASH"
 if "page_mode" not in st.session_state:
@@ -29,17 +31,17 @@ if "current_session_id" not in st.session_state:
 if "transfer_situation" not in st.session_state:
     st.session_state.transfer_situation = ""
 
-# 3. 데이터 로드 및 새 유저 자동 등록 (에러 방지 핵심!)
+# 4. 데이터 로드 및 새 유저 등록 (KeyError 방지)
 all_data = database.load_all_data()
 
-# [체크 2] 새로 생성된 User_xxxx 이름표가 데이터 파일에 없다면 즉시 생성
+# 만약 처음 온 유저(User_xxxx)라면 데이터 창고에 자리를 만들어줍니다.
 if st.session_state.user not in all_data:
     all_data[st.session_state.user] = {
         "sessions": {}, 
         "total_exp": 0, 
         "mood_calendar": {}
     }
-    database.save_all_data(all_data) # 파일에 즉시 저장
+    database.save_all_data(all_data)
 
 # API 설정
 try:
