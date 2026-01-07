@@ -91,7 +91,13 @@ def check_relation_keywords(text):
 # [STATE 1] 스플래시 화면
 if st.session_state.app_state == "SPLASH":
     gif_b64 = database.get_image_base64("assets/images/loading.gif") if os.path.exists("assets/images/loading.gif") else ""
-    st.markdown(f"""<div class="fixed-splash"><img src="data:image/gif;base64,{gif_b64}" class="splash-gif"><p class="splash-text">내 마음의 작은 쉼표</p></div>""", unsafe_allow_html=True)
+    # [수정] 로고 이미지 아래에 텍스트(<p class="splash-text">) 추가
+    st.markdown(f"""
+        <div class="fixed-splash">
+            <img src="data:image/gif;base64,{gif_b64}" class="splash-gif">
+            <p class="splash-text">나를 위한 작은 쉼표</p>
+        </div>
+    """, unsafe_allow_html=True)
     time.sleep(2.0)
     st.session_state.app_state = "MAIN"
     st.rerun()
