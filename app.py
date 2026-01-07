@@ -17,7 +17,7 @@ styles.apply_pro_css()
 
 # 세션 상태 초기화
 if "user" not in st.session_state:
-    st.session_state.user = "Guest"
+    st.session_state.user = f"User_{str(uuid.uuid4())[:8]}"
 if "app_state" not in st.session_state:
     st.session_state.app_state = "SPLASH"
 if "page_mode" not in st.session_state:
