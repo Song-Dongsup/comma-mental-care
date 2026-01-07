@@ -15,6 +15,7 @@ import styles
 st.set_page_config(page_title="Comma", layout="centered", initial_sidebar_state="collapsed")
 styles.apply_pro_css()
 
+# 세션 상태 초기화
 if "user" not in st.session_state:
     st.session_state.user = "Guest"
 if "app_state" not in st.session_state:
@@ -26,12 +27,23 @@ if "current_session_id" not in st.session_state:
 if "transfer_situation" not in st.session_state:
     st.session_state.transfer_situation = ""
 
+# API 설정
 try:
     genai.configure(api_key=config.GOOGLE_API_KEY)
 except Exception:
     pass
 
+# 2. 데이터 로드 및 유저 데이터 안전 생성
 all_data = database.load_all_data()
+
+# [수정] 유저 정보가 없으면 에러 없이 즉시 생성
+if st.session_state.user not in all_data:
+    all_data[st.session_state.user] = {
+        "sessions": {}, 
+        "total_exp": 0, 
+        "mood_calendar": {}
+    }
+    database.save_all_data(all_data)
 
 # --- 헬퍼 함수 ---
 def get_tree_level(exp):
@@ -44,7 +56,6 @@ def get_warm_summary(messages, persona_name):
     if not messages: return "오늘도 수고했어요."
     chat_history = "\n".join([f"{m['role']}: {m['content']}" for m in messages[-5:]])
     try:
-        # [수정] 무조건 config 모델 사용
         model = genai.GenerativeModel(config.SELECTED_MODEL)
         response = model.generate_content(f"상담 내용 요약 및 격려 한 문장 (해요체): {chat_history}")
         return response.text.strip()
@@ -65,7 +76,6 @@ def analyze_chat_for_garden(messages, persona_name):
     [대화 내용] {chat_history}
     """
     try:
-        # [수정] 무조건 config 모델 사용
         model = genai.GenerativeModel(config.SELECTED_MODEL)
         response = model.generate_content(
             prompt, 
@@ -97,7 +107,6 @@ def analyze_other_person(target, situation):
     }}
     """
     try:
-        # [수정] 무조건 config 모델 사용
         model = genai.GenerativeModel(config.SELECTED_MODEL)
         response = model.generate_content(
             prompt,
@@ -112,22 +121,9 @@ def analyze_other_person(target, situation):
         }
 
 def generate_short_title(user_msg):
-    """
-    [수정] 제목 생성: 절대 설명 금지, 키워드만 출력
-    """
     try:
-        # [수정] 무조건 config 모델 사용
         model = genai.GenerativeModel(config.SELECTED_MODEL)
-        prompt = f"""
-        당신은 요약기입니다. 입력된 문장에서 핵심 키워드 1~2개를 뽑아 제목을 만드세요.
-        
-        [규칙]
-        1. 설명하지 마세요. (예: "다음은 제목입니다" 금지)
-        2. 공백 포함 10자 이내 명사형.
-        3. 오직 단어만 출력하세요.
-        
-        [입력]: {user_msg}
-        """
+        prompt = f"입력된 문장에서 핵심 키워드 1~2개를 뽑아 제목을 만드세요. 오직 단어만 출력하세요: {user_msg}"
         response = model.generate_content(prompt)
         cleaned_title = response.text.strip().split('\n')[0].replace('"', '').replace("'", "")
         return cleaned_title[:10]
@@ -196,17 +192,17 @@ elif st.session_state.app_state == "MAIN":
 
         st.divider()
 
-        # 대화 목록 관리 (CHAT 모드일 때만)
+        # 대화 목록 관리
+        if "sessions" not in all_data[st.session_state.user]:
+            all_data[st.session_state.user]["sessions"] = {}
+        
+        if selected_persona_name not in all_data[st.session_state.user]["sessions"]:
+            all_data[st.session_state.user]["sessions"][selected_persona_name] = []
+        
+        user_sessions = all_data[st.session_state.user]["sessions"][selected_persona_name]
+
         if st.session_state.page_mode == "CHAT":
             st.subheader(f"{selected_persona_name}와의 기록")
-            
-            if "sessions" not in all_data[st.session_state.user]:
-                all_data[st.session_state.user]["sessions"] = {}
-            if selected_persona_name not in all_data[st.session_state.user]["sessions"]:
-                all_data[st.session_state.user]["sessions"][selected_persona_name] = []
-            
-            user_sessions = all_data[st.session_state.user]["sessions"][selected_persona_name]
-
             if st.button("➕ 새 대화 시작하기", use_container_width=True):
                 new_session_id = str(uuid.uuid4())
                 new_session = {
@@ -217,37 +213,26 @@ elif st.session_state.app_state == "MAIN":
                     "messages": []
                 }
                 user_sessions.insert(0, new_session) 
-                all_data[st.session_state.user]["sessions"][selected_persona_name] = user_sessions
                 database.save_all_data(all_data)
-                
                 st.session_state.current_session_id = new_session_id
-                st.session_state.page_mode = "CHAT"
                 st.rerun()
 
-            if not user_sessions:
-                st.caption("기록 없음")
-            else:
-                for idx, session in enumerate(user_sessions):
-                    sess_title = session.get('title', session['created_at'])
-                    if session.get('is_completed', False):
-                        sess_title = f"✔️ {sess_title}"
-
-                    c1, c2 = st.columns([4, 1])
-                    with c1:
-                        is_active = (st.session_state.current_session_id == session['id'])
-                        btn_label = f"📂 {sess_title}" if not is_active else f"📂 {sess_title} (열림)"
-                        if st.button(btn_label, key=f"sel_{session['id']}", use_container_width=True):
-                            st.session_state.current_session_id = session['id']
-                            st.session_state.page_mode = "CHAT"
-                            st.rerun()
-                    with c2:
-                        if st.button("x", key=f"del_{session['id']}"):
-                            user_sessions.pop(idx)
-                            if st.session_state.current_session_id == session['id']:
-                                st.session_state.current_session_id = None
-                            all_data[st.session_state.user]["sessions"][selected_persona_name] = user_sessions
-                            database.save_all_data(all_data)
-                            st.rerun()
+            for idx, session in enumerate(user_sessions):
+                sess_title = session.get('title', session['created_at'])
+                if session.get('is_completed', False): sess_title = f"✔️ {sess_title}"
+                c1, c2 = st.columns([4, 1])
+                with c1:
+                    is_active = (st.session_state.current_session_id == session['id'])
+                    if st.button(f"📂 {sess_title}", key=f"sel_{session['id']}", use_container_width=True):
+                        st.session_state.current_session_id = session['id']
+                        st.rerun()
+                with c2:
+                    if st.button("x", key=f"del_{session['id']}"):
+                        user_sessions.pop(idx)
+                        if st.session_state.current_session_id == session['id']:
+                            st.session_state.current_session_id = None
+                        database.save_all_data(all_data)
+                        st.rerun()
 
         st.divider()
         my_exp = database.get_user_exp(st.session_state.user)
@@ -273,21 +258,13 @@ elif st.session_state.app_state == "MAIN":
 
     # === [PAGE 1] CHAT 모드 ===
     if st.session_state.page_mode == "CHAT":
-        
         if not st.session_state.current_session_id:
             if user_sessions:
                 st.session_state.current_session_id = user_sessions[0]['id']
             else:
                 new_session_id = str(uuid.uuid4())
-                new_session = {
-                    "id": new_session_id,
-                    "created_at": datetime.now().strftime("%m/%d %H:%M"),
-                    "title": "새로운 대화",
-                    "is_completed": False,
-                    "messages": []
-                }
+                new_session = {"id": new_session_id, "created_at": datetime.now().strftime("%m/%d %H:%M"), "title": "새로운 대화", "is_completed": False, "messages": []}
                 user_sessions.insert(0, new_session)
-                all_data[st.session_state.user]["sessions"][selected_persona_name] = user_sessions
                 database.save_all_data(all_data)
                 st.session_state.current_session_id = new_session_id
             st.rerun()
@@ -299,9 +276,8 @@ elif st.session_state.app_state == "MAIN":
             is_completed = active_session.get('is_completed', False)
             
             if not current_messages:
-                greeting = "안녕하세요, 오늘 기분은 어때요?"
-                if "가족" in list(personas.PERSONA_LIBRARY.keys()) and my_gender:
-                     greeting = f"우리 {my_gender}, 오늘 기분은 좀 어때?"
+                greeting = f"안녕하세요 {st.session_state.user}님, 오늘 기분은 어때요?"
+                if "가족" in category and my_gender: greeting = f"우리 {my_gender}, 오늘 기분은 좀 어때?"
                 current_messages.append({"role": "assistant", "content": greeting})
                 database.save_all_data(all_data)
 
@@ -318,7 +294,6 @@ elif st.session_state.app_state == "MAIN":
                         analysis_result = analyze_chat_for_garden(current_messages, selected_persona_name)
                         active_session['is_completed'] = True
                         database.save_all_data(all_data)
-                        
                         st.session_state.temp_result = {"earned": earned, "analysis": analysis_result}
                         st.session_state.page_mode = "GARDEN"
                         st.rerun()
@@ -327,15 +302,12 @@ elif st.session_state.app_state == "MAIN":
                 st.info("✅ 종료된 상담입니다. 사이드바에서 새 대화를 시작해보세요.")
             else:
                 if prompt := st.chat_input("메시지 입력..."):
-                    
                     has_relation_keyword = check_relation_keywords(prompt)
-
                     current_messages.append({"role": "user", "content": prompt})
                     with st.chat_message("user"): st.markdown(prompt)
 
                     if len(current_messages) == 2:
-                        new_title = generate_short_title(prompt)
-                        active_session['title'] = new_title
+                        active_session['title'] = generate_short_title(prompt)
                         database.save_all_data(all_data)
 
                     ai_avatar = char_data.get("img") if os.path.exists(char_data.get("img", "")) else None
@@ -346,8 +318,6 @@ elif st.session_state.app_state == "MAIN":
                             sys_prompt = char_data['base_msg']
                             if custom_context: sys_prompt += f"\n[설정]: {custom_context}"
                             if my_gender: sys_prompt += f"\n[User Info]: 나는 {my_gender}입니다."
-
-                            # [수정] 무조건 config 모델 사용
                             model = genai.GenerativeModel(config.SELECTED_MODEL, system_instruction=sys_prompt)
                             chat = model.start_chat(history=[{"role": "user" if m["role"]=="user" else "model", "parts": [m["content"]]} for m in current_messages[:-1]])
                             response = chat.send_message(prompt, stream=True)
@@ -355,11 +325,10 @@ elif st.session_state.app_state == "MAIN":
                                 full_res += chunk.text
                                 msg_box.markdown(full_res + "▌")
                             msg_box.markdown(full_res)
-                            
                             current_messages.append({"role": "assistant", "content": full_res})
                             database.save_all_data(all_data)
                         except Exception as e:
-                            st.error("Error")
+                            st.error(f"Error: {e}")
                     
                     if has_relation_keyword:
                         with st.chat_message("assistant", avatar="🔍"):
@@ -368,20 +337,13 @@ elif st.session_state.app_state == "MAIN":
                                 st.session_state.transfer_situation = prompt
                                 st.session_state.page_mode = "RELATION"
                                 st.rerun()
-                    
-                    if len(current_messages) == 3: 
-                        st.rerun()
 
     # === [PAGE 2] GARDEN 모드 ===
     elif st.session_state.page_mode == "GARDEN":
         curr_exp = database.get_user_exp(st.session_state.user)
         lvl_name, lvl_msg = get_tree_level(curr_exp)
-        
-        earned = 0
-        analysis = {}
-        if "temp_result" in st.session_state:
-            earned = st.session_state.temp_result.get("earned", 0)
-            analysis = st.session_state.temp_result.get("analysis", {})
+        earned = st.session_state.temp_result.get("earned", 0) if "temp_result" in st.session_state else 0
+        analysis = st.session_state.temp_result.get("analysis", {}) if "temp_result" in st.session_state else {}
         
         summary = analysis.get("summary", "마음을 가꾸는 시간은 언제나 소중합니다.")
         mood_color = analysis.get("color", "#EEE")
@@ -389,97 +351,45 @@ elif st.session_state.app_state == "MAIN":
         mission_text = analysis.get("mission", "잠시 하늘 바라보기")
         
         st.subheader("🌿 마음 정원")
-        
-        point_msg = f"+{earned} Point" if earned > 0 else "오늘도 평온하세요"
-        
-        st.markdown(f"""
-            <div style="background-color:#F1F8E9; padding:30px; border-radius:20px; text-align:center;">
-                <div style="font-size:80px;">🌳</div>
-                <h2 style="color:#2E7D32; margin:0;">{lvl_name}</h2>
-                <p>"{lvl_msg}"</p>
-                <h1 style="color:#33691E;">{point_msg}</h1>
-            </div>
-        """, unsafe_allow_html=True)
-        
-        st.write("")
+        st.markdown(f"""<div style="background-color:#F1F8E9; padding:30px; border-radius:20px; text-align:center;"><div style="font-size:80px;">🌳</div><h2 style="color:#2E7D32; margin:0;">{lvl_name}</h2><p>"{lvl_msg}"</p><h1 style="color:#33691E;">+{earned} Point</h1></div>""", unsafe_allow_html=True)
         st.info(f"💌 {selected_persona_name}의 메시지: {summary}")
         
-        st.divider()
-        st.write("### 🎁 더 챙겨드리고 싶은 게 있어요")
         col1, col2 = st.columns(2)
         with col1:
             if st.button("🎨 감정 색깔 남기기"):
-                today_str = datetime.now().strftime("%Y-%m-%d")
-                database.save_mood_entry(st.session_state.user, today_str, {"color": mood_color, "emotion": mood_text})
+                database.save_mood_entry(st.session_state.user, datetime.now().strftime("%Y-%m-%d"), {"color": mood_color, "emotion": mood_text})
                 st.success(f"오늘의 색: {mood_text}")
-                st.markdown(f"<div style='width:100%; height:20px; background-color:{mood_color}; border-radius:10px;'></div>", unsafe_allow_html=True)
         with col2:
             if st.button("🏃 기분 전환 미션"):
-                st.success(f"미션: {mission_text}")
-                st.balloons()
+                st.success(f"미션: {mission_text}"); st.balloons()
         
-        st.write("")
         st.subheader("📅 내 감정의 흐름")
         calendar_data = database.get_mood_calendar(st.session_state.user)
         if calendar_data:
             cols = st.columns(7)
             sorted_dates = sorted(calendar_data.keys())[-7:]
             for i, date_key in enumerate(sorted_dates):
-                data = calendar_data[date_key]
-                with cols[i]:
-                    st.markdown(f"""<div style="text-align:center;"><div style="width:25px;height:25px;background-color:{data['color']};border-radius:50%;margin:auto;"></div><div style="font-size:9px;">{date_key[5:]}</div></div>""", unsafe_allow_html=True)
+                with cols[i]: st.markdown(f"""<div style="text-align:center;"><div style="width:25px;height:25px;background-color:{calendar_data[date_key]['color']};border-radius:50%;margin:auto;"></div><div style="font-size:9px;">{date_key[5:]}</div></div>""", unsafe_allow_html=True)
         
-        st.divider()
         if st.button("💬 대화 목록으로 돌아가기", use_container_width=True):
-            st.session_state.page_mode = "CHAT"
-            st.rerun()
+            st.session_state.page_mode = "CHAT"; st.rerun()
 
     # === [PAGE 3] RELATION 모드 ===
     elif st.session_state.page_mode == "RELATION":
         st.subheader("🔍 타인 심리 분석 (Why?)")
-        st.markdown("""
-        <div style="background-color:#E8EAF6; padding:15px; border-radius:10px; margin-bottom:20px;">
-            <p style="margin:0; font-size:14px; color:#3F51B5;">
-            <b>"도대체 저 사람은 왜 저럴까?"</b><br>
-            이해가 안 되는 상대방의 말과 행동을 입력해보세요.<br>
-            심리 전문가가 그 사람의 속마음을 분석해드립니다.
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown('<div style="background-color:#E8EAF6; padding:15px; border-radius:10px; margin-bottom:20px;"><p style="margin:0; font-size:14px; color:#3F51B5;"><b>"도대체 저 사람은 왜 저럴까?"</b><br>이해가 안 되는 상대방의 말과 행동을 입력해보세요.</p></div>', unsafe_allow_html=True)
 
         with st.form("relation_form"):
-            ttarget_name = st.text_input("누구인가요?", placeholder="예: 김부장님, 내 동생, 썸남")
-            situation = st.text_area("어떤 행동을 했나요?", value=st.session_state.transfer_situation, placeholder="구체적인 상황을 적어주세요.", height=150)
-            
+            target_name = st.text_input("누구인가요?", placeholder="예: 김부장님, 내 동생")
+            situation = st.text_area("어떤 행동을 했나요?", value=st.session_state.transfer_situation, height=150)
             submitted = st.form_submit_button("🔍 심리 분석하기", use_container_width=True)
 
             if submitted:
-                if not target_name or not situation:
-                    st.warning("대상과 상황을 모두 입력해주세요.")
+                if not target_name or not situation: st.warning("대상과 상황을 모두 입력해주세요.")
                 else:
-                    with st.spinner(f"{target_name}님의 심리를 분석하는 중입니다..."):
+                    with st.spinner(f"{target_name}님의 심리를 분석하는 중..."):
                         result = analyze_other_person(target_name, situation)
-                        
-                        st.write("")
-                        st.markdown(f"### 🕵️‍♂️ 분석 결과 리포트")
-                        
-                        st.markdown(f"""
-                        <div style="background-color:#FFF3E0; padding:20px; border-radius:15px; border-left: 5px solid #FF9800; margin-bottom:15px;">
-                            <h4 style="margin:0; color:#EF6C00;">💭 그 사람의 속마음</h4>
-                            <p style="margin-top:10px; font-size:15px;">"{result.get('hidden_mind', '분석 불가')}"</p>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
-                        st.markdown(f"""
-                        <div style="background-color:#E3F2FD; padding:20px; border-radius:15px; border-left: 5px solid #2196F3; margin-bottom:15px;">
-                            <h4 style="margin:0; color:#1565C0;">💧 왜 그랬을까요? (결핍)</h4>
-                            <p style="margin-top:10px; font-size:15px;">{result.get('reason', '분석 불가')}</p>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
-                        st.markdown(f"""
-                        <div style="background-color:#F3E5F5; padding:20px; border-radius:15px; border-left: 5px solid #9C27B0; margin-bottom:15px;">
-                            <h4 style="margin:0; color:#6A1B9A;">💡 현명한 대처법</h4>
-                            <p style="margin-top:10px; font-size:15px;">{result.get('advice', '분석 불가')}</p>
-                        </div>
-                        """, unsafe_allow_html=True)
+                        st.markdown(f"""<div style="background-color:#FFF3E0; padding:20px; border-radius:15px; border-left: 5px solid #FF9800; margin-bottom:15px;"><h4>💭 속마음</h4><p>{result.get('hidden_mind', '분석 불가')}</p></div>""", unsafe_allow_html=True)
+                        st.markdown(f"""<div style="background-color:#E3F2FD; padding:20px; border-radius:15px; border-left: 5px solid #2196F3; margin-bottom:15px;"><h4>💧 원인</h4><p>{result.get('reason', '분석 불가')}</p></div>""", unsafe_allow_html=True)
+                        st.markdown(f"""<div style="background-color:#F3E5F5; padding:20px; border-radius:15px; border-left: 5px solid #9C27B0; margin-bottom:15px;"><h4>💡 대처법</h4><p>{result.get('advice', '분석 불가')}</p></div>""", unsafe_allow_html=True)
+                        st.session_state.transfer_situation = "" # 분석 완료 후 초기화
