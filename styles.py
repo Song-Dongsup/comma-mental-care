@@ -3,164 +3,165 @@ import streamlit as st
 def apply_pro_css():
     st.markdown("""
         <style>
-        /* 1. 폰트 설정 */
-        @import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.8/dist/web/static/pretendard.css");
-        
+        /* --- 전체 앱 스타일 --- */
+        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+
         html, body, [class*="css"] {
-            font-family: 'Pretendard', sans-serif !important;
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Helvetica Neue', 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+            color: #333333;
         }
 
-        /* 2. 전체 레이아웃 */
-        .stApp {
-            background-color: #F0F2F5;
-        }
-        
-        .block-container {
-            max-width: 420px !important;
-            margin: 0 auto !important;
-            background-color: #FFFFFF;
-            min-height: 100vh;
-            
-            /* [핵심] 상단 여백을 없애서 헤더가 맨 위로 붙게 하되, 잘리지는 않게 함 */
-            padding-top: 0 !important; 
-            padding-bottom: 120px !important; 
-            
-            box-shadow: 0 0 20px rgba(0,0,0,0.05);
+        /* 메인 영역 배경 및 여백 */
+        .main .block-container {
+            padding-top: 2rem;
+            padding-bottom: 5rem;
+            max-width: 700px;
         }
 
-        /* 3. [핵심] Streamlit 기본 헤더 처리 (투명화 + 버튼 살리기) */
-        header[data-testid="stHeader"] {
-            background: transparent !important; /* 배경 투명 */
-            height: 60px !important;
-            z-index: 1000 !important; /* 제일 위에 둬서 버튼 클릭 가능하게 */
+        /* 헤더 숨김 및 상단 여백 제거 */
+        header {visibility: hidden;}
+        [data-testid="stViewContainer"] > section:first-child {
+             padding-top: 0 !important;
         }
-        
-        /* 헤더 안의 아이콘 색상 (잘 보이게) */
-        header[data-testid="stHeader"] button {
-            color: #555 !important;
-        }
-        
-        /* 4. [핵심] 커스텀 헤더 (Sticky + 안전 여백) */
+
+        /* --- 커스텀 헤더 --- */
         .custom-header {
-            position: sticky; /* 본문 흐름에 고정 (사이드바 밀림 대응) */
-            top: 0;
-            z-index: 999; /* 기본 헤더 바로 아래 */
-            
-            width: 100%;
-            height: 60px;
-            
-            background-color: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(5px);
-            border-bottom: 1px solid #F0F0F0;
-            
             display: flex;
-            align-items: center;
-            justify-content: center; /* 로고 중앙 정렬 */
-            
-            /* [수정] 마이너스 마진 삭제 -> 로고 잘림 방지 */
-            margin-top: -60px; /* 기본 헤더 자리만큼만 위로 당김 (겹치기용) */
-            padding: 0;
-        }
-        
-        /* 로고: 중앙 배치 */
-        .header-logo-container {
-            display: flex; 
-            align-items: center; 
             justify-content: center;
-            width: 100%;
+            align-items: center;
+            padding: 15px 0;
+            background-color: #FFFFFF;
+            border-bottom: 1px solid #EEE;
+            margin-bottom: 20px;
+            position: sticky;
+            top: 0;
+            z-index: 999;
         }
-        
-        .header-logo-img { 
-            height: 24px !important; 
-            width: auto !important; 
+        .header-logo-img {
+            height: 40px;
             object-fit: contain;
-            /* 위쪽 여백을 살짝 줘서 화살표랑 라인 맞춤 */
-            margin-top: 2px; 
-        }
-        
-        /* 프로필: 오른쪽 절대 위치 */
-        .header-profile-img { 
-            position: absolute;
-            right: 20px;
-            width: 32px !important; 
-            height: 32px !important; 
-            border-radius: 50%; 
-            border: 1px solid #eee;
-            object-fit: cover;
         }
 
-        /* 5. 입력창 (너비 맞춤) */
-        [data-testid="stChatInput"] {
-            background: white;
-            /* 본문 너비에 맞춤 */
-            max-width: 420px !important;
-            margin: 0 auto !important;
-            
-            padding-bottom: 20px !important;
-            border-top: 1px solid #F5F5F5;
-            z-index: 1000;
-        }
-        
-        .stChatInputContainer textarea {
-            border-radius: 25px !important;
-            border: 1px solid #E0E0E0 !important;
-            background-color: #FAFAFA !important;
-            min-height: 50px !important;
-            font-size: 16px !important;
-            padding: 12px 15px !important;
-        }
-
-        /* 6. 콤마 로딩 (유지) */
-        @keyframes comma-bounce {
-            0% { content: ","; }
-            33% { content: ",,"; }
-            66% { content: ",,,"; }
-        }
-        .comma-loading::after {
-            content: ",";
-            animation: comma-bounce 1.5s infinite steps(1);
-            font-weight: 800;
-            color: #FF6B6B;
-            letter-spacing: 2px;
-        }
-        .loading-text {
-            font-size: 14px; color: #666;
-            background-color: #F8F9FA;
-            padding: 12px 20px;
-            border-radius: 20px;
-            border-bottom-left-radius: 4px;
-            display: inline-block;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-            margin-bottom: 10px;
-        }
-
-        /* 7. 말풍선 스타일 */
-        [data-testid="stChatMessage"] { padding: 0.5rem 0.5rem !important; }
-        
-        div[data-testid="stChatMessage"]:has(div[aria-label="user"]) {
-            flex-direction: row-reverse;
-        }
-        div[data-testid="stChatMessage"]:has(div[aria-label="user"]) .st-emotion-cache-1c7y2kd {
-            background-color: #4A90E2; color: white; 
-            border-radius: 18px; border-top-right-radius: 2px;
-            padding: 10px 16px;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-        }
-        div[data-testid="stChatMessage"]:has(div[aria-label="assistant"]) .st-emotion-cache-1c7y2kd {
-            background-color: #F3F4F6; color: #333;
-            border-radius: 18px; border-top-left-radius: 2px;
-            padding: 10px 16px;
-        }
-
-        #MainMenu {visibility: hidden;}
-        footer {visibility: hidden;}
-        
-        /* 스플래시 */
+        /* --- 스플래시 화면 (로딩) --- */
         .fixed-splash {
-            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-            background-color: white; z-index: 99999;
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: #FFFFFF;
+            display: flex;
+            flex-direction: column; /* 위아래 배치 */
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
         }
-        .splash-gif { width: 60px !important; height: auto; }
+        .splash-gif {
+            width: 150px; /* 로고 크기 조절 */
+            margin-bottom: 20px;
+            /* 두근거리는 애니메이션 효과 */
+            animation: heartbeat 1.5s ease-in-out infinite both;
+        }
+        .splash-text {
+            font-size: 18px;
+            color: #888888; /* 회색 텍스트 */
+            font-weight: 500;
+        }
+        @keyframes heartbeat {
+            from { transform: scale(1); transform-origin: center center; animation-timing-function: ease-out; }
+            10% { transform: scale(1.05); animation-timing-function: ease-in; }
+            17% { transform: scale(1); animation-timing-function: ease-out; }
+            33% { transform: scale(1.05); animation-timing-function: ease-in; }
+            45% { transform: scale(1); animation-timing-function: ease-out; }
+        }
+
+        /* --- 채팅 메시지 스타일 --- */
+        /* 1. 기본 컨테이너 스타일 제거 */
+        [data-testid="stChatMessage"] {
+            background-color: transparent !important;
+            border: none !important;
+            padding: 0 !important;
+            margin-bottom: 10px !important;
+        }
+
+        /* 2. 아바타 스타일 */
+        [data-testid="stChatMessageAvatar"] {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+
+        /* 3. 메시지 내용 컨테이너 (말풍선) 공통 스타일 */
+        [data-testid="stChatMessageContent"] {
+            padding: 12px 16px !important;
+            border-radius: 20px !important; /* 모서리 20px */
+            font-size: 14px !important; /* 글자 크기 14pt */
+            line-height: 1.5 !important;
+            max-width: 80%;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+
+        /* 4. AI (Assistant) 메시지 스타일 - 왼쪽 */
+        [data-testid="stChatMessage"][data-testid*="assistant"] {
+            flex-direction: row;
+        }
+        [data-testid="stChatMessage"][data-testid*="assistant"] [data-testid="stChatMessageContent"] {
+            background-color: #E8EAF6 !important; /* 네이비 블루 음영 20% */
+            color: #333333 !important;
+            border-top-left-radius: 5px !important; /* 왼쪽 상단 꼬리 느낌 시도 */
+            margin-right: auto; /* 왼쪽 정렬 */
+        }
+
+        /* 5. 사용자 (User) 메시지 스타일 - 오른쪽 */
+        [data-testid="stChatMessage"][data-testid*="user"] {
+            flex-direction: row-reverse; /* 아이콘 오른쪽에 배치 */
+        }
+        [data-testid="stChatMessage"][data-testid*="user"] [data-testid="stChatMessageAvatar"] {
+            margin-right: 0;
+            margin-left: 10px;
+            display: none; /* 사용자 아이콘 숨김 (깔끔하게) */
+        }
+        [data-testid="stChatMessage"][data-testid*="user"] [data-testid="stChatMessageContent"] {
+            background-color: #FCE4EC !important; /* 버건디 레드 음영 20% */
+            color: #333333 !important;
+            border-top-right-radius: 5px !important; /* 오른쪽 상단 꼬리 느낌 시도 */
+            margin-left: auto; /* 오른쪽 정렬 */
+        }
+
+        /* --- 사이드바 스타일 --- */
+        [data-testid="stSidebar"] {
+            background-color: #F9FAFB;
+            padding-top: 2rem;
+        }
+        [data-testid="stSidebar"] hr {
+            margin: 1.5rem 0;
+        }
+        /* 버튼 스타일 */
+        .stButton > button {
+            border-radius: 10px;
+            border: none;
+            background-color: #FFFFFF;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            color: #555;
+            padding: 0.5rem 1rem;
+            transition: all 0.2s;
+        }
+        .stButton > button:hover {
+            background-color: #F0F2F6;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+            color: #FF4B4B;
+        }
+        /* 입력창 스타일 */
+        .stTextInput > div > div > input, .stSelectbox > div > div > div, .stTextArea > div > div > textarea {
+            border-radius: 10px;
+            border: 1px solid #EEE;
+        }
+        /* 하단 채팅 입력창 */
+        [data-testid="stChatInput"] {
+            bottom: 20px;
+        }
+        [data-testid="stChatInput"] > div > div {
+            border-radius: 25px;
+            border: 1px solid #DDD;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
         </style>
     """, unsafe_allow_html=True)
